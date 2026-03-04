@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User model
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workflows Workflow[]
+
+  @@map("users")
+}
+
+// Workflow model
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      WorkflowStatus @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String
+  user        User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  // Relations
+  steps          WorkflowStep[]
+  executionLogs  ExecutionLog[]
+
+  @@index([createdBy])
+  @@map("workflows")
+}
+
+// WorkflowStep model
+model WorkflowStep {
+  id          String   @id @default(cuid())
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  type        StepType
+  order       Int
+  config      Json?
+  status      StepStatus @default(ACTIVE)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  executionLogs ExecutionLog[]
+
+  @@unique([workflowId, order])
+  @@index([workflowId])
+  @@map("workflow_steps")
+}
+
+// ExecutionLog model
+model ExecutionLog {
+  id              String   @id @default(cuid())
+  workflowId      String
+  workflow        Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  workflowStepId  String?
+  workflowStep    WorkflowStep? @relation(fields: [workflowStepId], references: [id], onDelete: SetNull)
+  
+  status          ExecutionStatus
+  startedAt       DateTime
+  completedAt     DateTime?
+  duration        Int?  // Duration in milliseconds
+  
+  input           Json?
+  output          Json?
+  error           String?
+  
+  createdAt       DateTime @default(now())
+
+  @@index([workflowId])
+  @@index([workflowStepId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("execution_logs")
+}
+
+// Enums
+enum WorkflowStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+  DELETED
+}
+
+enum StepType {
+  HTTP
+  EMAIL
+  DATABASE
+  SCRIPT
+  WEBHOOK
+  CONDITIONAL
+  LOOP
+  PARALLEL
+  MANUAL_APPROVAL
+  CUSTOM
+}
+
+enum StepStatus {
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+  TIMEOUT
+  CANCELLED
+}
