@@ -1,5 +1,5 @@
 import { prisma } from '../utils/prisma';
-import { User, Workflow, WorkflowStep, ExecutionLog } from '../generated/prisma';
+import { User, Workflow, WorkflowStep, ExecutionLog } from '../generated/prisma/index';
 
 export class UserService {
   static async createUser(data: {
@@ -219,7 +219,7 @@ export class ExecutionLogService {
       running: 0,
     };
 
-    logs.forEach((log) => {
+    logs.forEach((log: any) => {
       stats.total += log._count;
       if (log.status === 'COMPLETED') stats.completed += log._count;
       if (log.status === 'FAILED') stats.failed += log._count;
