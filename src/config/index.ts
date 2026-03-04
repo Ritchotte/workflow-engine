@@ -19,6 +19,10 @@ interface Config {
   logging: {
     level: string;
   };
+  jwt: {
+    secret: string;
+    expiresIn: string;
+  };
 }
 
 const getEnvironmentVariable = (key: string, defaultValue?: string): string => {
@@ -47,6 +51,10 @@ export const config: Config = {
   },
   logging: {
     level: getEnvironmentVariable('LOG_LEVEL', 'info'),
+  },
+  jwt: {
+    secret: getEnvironmentVariable('JWT_SECRET', 'your-secret-key-change-in-production'),
+    expiresIn: getEnvironmentVariable('JWT_EXPIRES_IN', '24h'),
   },
 };
 
