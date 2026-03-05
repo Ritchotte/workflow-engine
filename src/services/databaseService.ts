@@ -1,5 +1,28 @@
 import { prisma } from '../utils/prisma';
-import { User, Workflow, WorkflowStep, ExecutionLog } from '../generated/prisma/index';
+import {
+  ExecutionLog,
+  ExecutionStatus,
+  Prisma,
+  StepType,
+  User,
+  Workflow,
+  WorkflowStatus,
+  WorkflowStep,
+} from '../generated/prisma';
+
+const toPrismaJson = (
+  value: Prisma.InputJsonValue | null | undefined
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return Prisma.JsonNull;
+  }
+
+  return value;
+};
 
 export class UserService {
   static async createUser(data: {
@@ -93,7 +116,7 @@ export class WorkflowService {
 
   static async updateWorkflow(
     id: string,
-    data: { name?: string; description?: string; status?: string }
+    data: { name?: string; description?: string; status?: WorkflowStatus }
   ): Promise<Workflow> {
     return prisma.workflow.update({
       where: { id },
@@ -112,19 +135,19 @@ export class WorkflowStepService {
   static async createStep(data: {
     workflowId: string;
     name: string;
-    type: string;
+    type: StepType;
     order: number;
     description?: string;
-    config?: Record<string, unknown>;
+    config?: Prisma.InputJsonValue | null;
   }): Promise<WorkflowStep> {
     return prisma.workflowStep.create({
       data: {
         workflowId: data.workflowId,
         name: data.name,
-        type: data.type as any,
+        type: data.type,
         order: data.order,
         description: data.description,
-        config: data.config,
+        config: toPrismaJson(data.config),
       },
     });
   }
@@ -138,11 +161,19 @@ export class WorkflowStepService {
 
   static async updateStep(
     id: string,
-    data: { name?: string; description?: string; config?: Record<string, unknown> }
+    data: {
+      name?: string;
+      description?: string;
+      config?: Prisma.InputJsonValue | null;
+    }
   ): Promise<WorkflowStep> {
     return prisma.workflowStep.update({
       where: { id },
-      data,
+      data: {
+        name: data.name,
+        description: data.description,
+        config: toPrismaJson(data.config),
+      },
     });
   }
 
@@ -157,34 +188,43 @@ export class ExecutionLogService {
   static async createExecutionLog(data: {
     workflowId: string;
     workflowStepId?: string;
-    status: string;
+    status: ExecutionStatus;
     startedAt: Date;
-    input?: Record<string, unknown>;
+    input?: Prisma.InputJsonValue | null;
   }): Promise<ExecutionLog> {
     return prisma.executionLog.create({
       data: {
         workflowId: data.workflowId,
         workflowStepId: data.workflowStepId,
-        status: data.status as any,
+        status: data.status,
         startedAt: data.startedAt,
-        input: data.input,
+        input: toPrismaJson(data.input),
       },
     });
   }
 
   static async completeExecutionLog(
     id: string,
-    data: { output?: Record<string, unknown>; error?: string }
+    data: { output?: Prisma.InputJsonValue | null; error?: string }
   ): Promise<ExecutionLog> {
+    const existingLog = await prisma.executionLog.findUnique({
+      where: { id },
+      select: { startedAt: true },
+    });
+
+    if (!existingLog) {
+      throw new Error('Execution log not found');
+    }
+
     const completedAt = new Date();
     return prisma.executionLog.update({
       where: { id },
       data: {
         status: data.error ? 'FAILED' : 'COMPLETED',
         completedAt,
-        output: data.output,
+        output: toPrismaJson(data.output),
         error: data.error,
-        duration: completedAt.getTime() - new Date(completedAt).getTime(),
+        duration: completedAt.getTime() - existingLog.startedAt.getTime(),
       },
     });
   }
@@ -219,7 +259,7 @@ export class ExecutionLogService {
       running: 0,
     };
 
-    logs.forEach((log: any) => {
+    logs.forEach((log) => {
       stats.total += log._count;
       if (log.status === 'COMPLETED') stats.completed += log._count;
       if (log.status === 'FAILED') stats.failed += log._count;

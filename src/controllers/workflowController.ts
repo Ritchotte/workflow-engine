@@ -1,5 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
-import { StepStatus, StepType, WorkflowStatus } from '../generated/prisma';
+import {
+  Prisma,
+  StepStatus,
+  StepType,
+  WorkflowStatus,
+} from '../generated/prisma';
 import { prisma } from '../utils/prisma';
 
 interface WorkflowStepPayload {
@@ -7,7 +12,7 @@ interface WorkflowStepPayload {
   description?: string;
   type: StepType;
   order: number;
-  config?: JsonValue;
+  config?: JsonValue | null;
   status?: StepStatus;
 }
 
@@ -45,6 +50,20 @@ const isValidWorkflowStatus = (
   status: string
 ): status is WorkflowStatus =>
   Object.values(WorkflowStatus).includes(status as WorkflowStatus);
+
+const toPrismaJson = (
+  value: JsonValue | null | undefined
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return Prisma.JsonNull;
+  }
+
+  return value as Prisma.InputJsonValue;
+};
 
 const areStepsValid = (steps: unknown): steps is WorkflowStepPayload[] => {
   if (!Array.isArray(steps)) {
@@ -151,7 +170,7 @@ export const createWorkflow = async (
             description: step.description,
             type: step.type,
             order: step.order,
-            config: step.config,
+            config: toPrismaJson(step.config),
             status: step.status,
           })),
         },

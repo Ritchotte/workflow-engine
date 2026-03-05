@@ -2,11 +2,13 @@ import { PrismaClient } from '../generated/prisma';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
+const prismaOptions = {
+  accelerateUrl: process.env.DATABASE_URL || '',
+} as const;
+
 export const prisma =
   globalForPrisma.prisma ||
-  new PrismaClient({
-    log: ['query', 'error', 'warn'],
-  });
+  new PrismaClient(prismaOptions);
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
