@@ -5,6 +5,7 @@ import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
+import workflowRouter from './routes/workflow';
 
 const app: Express = express();
 
@@ -17,6 +18,7 @@ app.use(requestLogger);
 // Routes
 app.use('/', healthRouter);
 app.use('/auth', authRouter);
+app.use('/workflows', workflowRouter);
 
 // 404 handler
 app.use((_req, res) => {
