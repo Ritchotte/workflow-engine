@@ -1,149 +1,261 @@
 # Workflow Engine
 
-A robust Node.js TypeScript backend built with Express, featuring Docker support, PostgreSQL integration, and Prisma ORM.
+This is a backend project for building and running simple workflows.
 
-## Features
+Think of it like this:
+- A **workflow** is a sequence of steps.
+- Each **step** is an action.
+- Right now, supported step actions are:
+  - `http_request`
+  - `delay`
+  - `log`
 
-- ✅ **TypeScript** - Full type safety
-- ✅ **Express.js** - Fast web framework
-- ✅ **Prisma ORM** - Type-safe database access
-- ✅ **PostgreSQL** - Relational database via docker-compose
-- ✅ **Docker** - Containerized with multi-stage builds
-- ✅ **Environment Configuration** - Dotenv support with validation
-- ✅ **ESLint & Prettier** - Code quality and formatting
-- ✅ **Health Checks** - Built-in `/health` endpoint
+Built with:
+- Node.js + TypeScript
+- Express
+- Prisma
+- PostgreSQL
 
-## Project Structure
+## Why this project exists
 
-```
+This project is a clean starter for workflow automation ideas.
+If you're in school (or just prototyping), it gives you:
+- auth basics
+- CRUD APIs for workflows
+- ordered steps with JSON config
+- execution logging for each step
+
+## Author
+
+Ruth Anna Ritchotte
+
+## Project layout
+
+```txt
 src/
-├── config/           # Configuration loader & env vars
-├── controllers/      # Request handlers
-├── middleware/       # Express middleware
-├── routes/          # Route definitions
-├── services/        # Business logic & database operations
-├── utils/           # Utility functions (Prisma client)
-├── generated/       # Auto-generated Prisma types
-├── index.ts         # App setup
-└── server.ts        # Server entry point
+  config/         env + config loading
+  controllers/    request handlers
+  middleware/     express middleware
+  routes/         API route files
+  services/       business logic + executors
+  utils/          helpers (like Prisma client)
+  index.ts        express app setup
+  server.ts       app entrypoint
+
 prisma/
-├── schema.prisma    # Database schema
-└── migrations/      # Database migrations
+  schema.prisma   database models
+  migrations/     prisma migrations
 ```
 
-## Database Schema
+## Quick start (local)
 
-### Models
+### 1. Install deps
 
-**User**
-- `id` - Unique identifier
-- `email` - Unique email
-- `name` - User name
-- `password` - Hashed password
-- `createdAt` - Creation timestamp
-- `updatedAt` - Last update timestamp
+```bash
+npm install --legacy-peer-deps
+```
 
-**Workflow**
-- `id` - Unique identifier
-- `name` - Workflow name
-- `description` - Optional description
-- `status` - ACTIVE, PAUSED, ARCHIVED, DELETED
-- `createdBy` - User ID who created it
-- `createdAt` - Creation timestamp
-- `updatedAt` - Last update timestamp
-- Relations: `steps[]`, `executionLogs[]`
+### 2. Create env file
 
-**WorkflowStep**
-- `id` - Unique identifier
-- `workflowId` - Parent workflow
-- `name` - Step name
-- `description` - Optional description
-- `type` - HTTP, EMAIL, DATABASE, SCRIPT, WEBHOOK, etc.
-- `order` - Execution order (unique per workflow)
-- `config` - JSONB configuration
-- `status` - ACTIVE, DISABLED, ARCHIVED
-- `createdAt`, `updatedAt` - Timestamps
-- Relations: `workflow`, `executionLogs[]`
+```bash
+cp .env.example .env
+```
 
-**ExecutionLog**
-- `id` - Unique identifier
-- `workflowId` - Workflow being executed
-- `workflowStepId` - Optional: specific step
-- `status` - PENDING, RUNNING, COMPLETED, FAILED, SKIPPED, TIMEOUT, CANCELLED
-- `startedAt` - Execution start time
-- `completedAt` - Execution end time
-- `duration` - Execution duration in milliseconds
-- `input` - JSONB input data
-- `output` - JSONB output data
-- `error` - Error message if failed
-- Relations: `workflow`, `workflowStep`
+### 3. Start Postgres
 
-## Getting Started
+If you want to use Docker:
 
-### Prerequisites
+```bash
+docker compose up -d postgres
+```
 
-- Node.js 20+
-- npm 10+
-- Docker & Docker Compose (for containerized setup)
+### 4. Run migrations
 
-### Local Development (without Docker)
+```bash
+npm run db:migrate
+```
 
-1. **Install dependencies**
-   ```bash
-   npm install --legacy-peer-deps
-   ```
+### 5. Start server
 
-2. **Setup environment**
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+npm run dev
+```
 
-3. **Start backend database**
-   - Option A: Use Docker container
-     ```bash
-     docker compose up -d postgres
-     ```
-   - Option B: Use local PostgreSQL (ensure it's running on localhost:5432)
+Server should run on:
+- `http://localhost:3000`
 
-4. **Run Prisma migrations**
-   ```bash
-   npm run db:migrate
-   ```
+Health check:
 
-5. **Start development server**
-   ```bash
-   npm run dev
-   ```
+```bash
+curl http://localhost:3000/health
+```
 
-   Server runs on `http://localhost:3000`
+## Docker all-in-one
 
-6. **Health check**
-   ```bash
-   curl http://localhost:3000/health
-   ```
-
-### Docker Setup
-
-#### Build and Run with Docker Compose
+Run app + database:
 
 ```bash
 docker compose up -d
 ```
 
-This starts:
-- **App** - http://localhost:3000
-- **PostgreSQL** - localhost:5432
-
-#### Run Migrations in Docker
+Then run migrations inside container:
 
 ```bash
-# After containers are running
 docker compose exec app npm run db:migrate
 ```
 
-#### Environment Variables for Docker
+## Main API routes
 
-Configure in `.env`:
+### Health
+- `GET /health`
+
+### Auth
+- `POST /auth/register`
+- `POST /auth/login`
+
+### Workflows
+- `POST /workflows`
+- `GET /workflows`
+- `GET /workflows/:id`
+- `DELETE /workflows/:id`
+- `POST /workflows/:id/execute`
+
+## Workflow + step model (plain English)
+
+### Workflow
+A workflow has:
+- name
+- optional description
+- status
+- creator (`createdBy`)
+- ordered steps
+
+### Step
+Each step has:
+- `name`
+- `type` (`http_request`, `delay`, `log`)
+- `order`
+- `config` (JSON)
+
+`config` is where step-specific options live.
+
+## Step config examples
+
+### `http_request`
+
+```json
+{
+  "name": "Call API",
+  "type": "http_request",
+  "order": 1,
+  "config": {
+    "url": "https://httpbin.org/post",
+    "method": "POST",
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "hello": "world"
+    },
+    "timeoutMs": 10000
+  }
+}
+```
+
+### `delay`
+
+```json
+{
+  "name": "Wait 2 seconds",
+  "type": "delay",
+  "order": 2,
+  "config": {
+    "durationMs": 2000
+  }
+}
+```
+
+### `log`
+
+```json
+{
+  "name": "Print message",
+  "type": "log",
+  "order": 3,
+  "config": {
+    "message": "Workflow reached step 3",
+    "level": "info"
+  }
+}
+```
+
+## Create a workflow (example)
+
+```bash
+curl -X POST http://localhost:3000/workflows \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Demo Workflow",
+    "description": "Simple 3-step run",
+    "createdBy": "<USER_ID>",
+    "steps": [
+      {
+        "name": "Call API",
+        "type": "http_request",
+        "order": 1,
+        "config": {
+          "url": "https://httpbin.org/get",
+          "method": "GET"
+        }
+      },
+      {
+        "name": "Pause",
+        "type": "delay",
+        "order": 2,
+        "config": {
+          "durationMs": 1000
+        }
+      },
+      {
+        "name": "Log done",
+        "type": "log",
+        "order": 3,
+        "config": {
+          "message": "Done",
+          "level": "info"
+        }
+      }
+    ]
+  }'
+```
+
+## Execute a workflow
+
+```bash
+curl -X POST http://localhost:3000/workflows/<WORKFLOW_ID>/execute
+```
+
+The server executes active steps in order and stores execution logs.
+
+## Scripts you’ll actually use
+
+```bash
+npm run dev         # start dev server
+npm run build       # TypeScript compile
+npm run lint        # lint checks
+npm run db:migrate  # run prisma migrations
+npm run db:push     # push schema (without migration files)
+npm run db:studio   # open Prisma Studio
+```
+
+## Environment variables
+
+At minimum, set:
+- `PORT`
+- `DATABASE_URL`
+- `NODE_ENV`
+
+If you use docker-compose defaults, your `.env` can look like this:
 
 ```env
 NODE_ENV=development
@@ -154,209 +266,31 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=workflow_db
 DATABASE_URL=postgres://postgres:postgres@postgres:5432/workflow_db
-LOG_LEVEL=debug
 ```
 
-#### Useful Docker Commands
+## Common issues
+
+### Postgres not connecting
 
 ```bash
-# Start containers
-docker compose up -d
-
-# View logs
-docker compose logs -f app
-
-# Run migrations
-docker compose exec app npm run db:migrate
-
-# Open database studio
-docker compose exec app npm run db:studio
-
-# Access database CLI
-docker compose exec postgres psql -U postgres -d workflow_db
-
-# Stop containers
-docker compose down
-
-# Remove everything (including volumes)
-docker compose down -v
-
-# Rebuild image
-docker compose up -d --build
-```
-
-## Available Scripts
-
-```bash
-# Development
-npm run dev           # Start dev server with hot reload
-
-# Building
-npm run build         # Compile TypeScript to JavaScript
-
-# Production
-npm start             # Run compiled app
-
-# Database
-npm run db:migrate    # Run pending migrations
-npm run db:push       # Push schema without creating migration files
-npm run db:studio     # Open Prisma Studio (visual DB management)
-
-# Code Quality
-npm run lint          # Run ESLint
-npm run lint:fix      # Fix ESLint issues
-npm run format        # Format with Prettier
-
-# Testing
-npm test              # Run tests (placeholder)
-```
-
-## API Endpoints
-
-### Health Check
-```
-GET /health
-```
-
-Response:
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-03-04T08:00:00.000Z",
-  "uptime": 123.456
-}
-```
-
-## Database Operations
-
-### Using Database Services
-
-```typescript
-import {
-  UserService,
-  WorkflowService,
-  WorkflowStepService,
-  ExecutionLogService,
-} from '@/services/databaseService';
-
-// Create a user
-const user = await UserService.createUser({
-  email: 'user@example.com',
-  name: 'John Doe',
-  password: 'hashed_password',
-});
-
-// Create a workflow
-const workflow = await WorkflowService.createWorkflow({
-  name: 'My Workflow',
-  createdBy: user.id,
-});
-
-// Add a step
-const step = await WorkflowStepService.createStep({
-  workflowId: workflow.id,
-  name: 'Send Email',
-  type: 'EMAIL',
-  order: 1,
-});
-
-// Log execution
-const log = await ExecutionLogService.createExecutionLog({
-  workflowId: workflow.id,
-  workflowStepId: step.id,
-  status: 'RUNNING',
-  startedAt: new Date(),
-});
-```
-
-### Raw Prisma Access
-
-```typescript
-import { prisma } from '@/utils/prisma';
-
-// Direct access to all models
-const users = await prisma.user.findMany();
-const workflows = await prisma.workflow.findUnique({
-  where: { id: 'workflow-id' },
-  include: { steps: true, executionLogs: true },
-});
-```
-
-## Configuration
-
-Environment configuration is loaded from `.env` file via `dotenv` and managed in [src/config/index.ts](src/config/index.ts).
-
-**Required variables:**
-- `NODE_ENV` - Environment (development/production)
-- `PORT` - Server port
-- `DATABASE_URL` - PostgreSQL connection string
-
-**Database variables:**
-- `POSTGRES_HOST` - Database host
-- `POSTGRES_PORT` - Database port
-- `POSTGRES_USER` - Database user
-- `POSTGRES_PASSWORD` - Database password
-- `POSTGRES_DB` - Database name
-
-## Development Workflow
-
-1. **Code Style** - All code must pass ESLint
-   ```bash
-   npm run lint:fix
-   ```
-
-2. **Formatting** - Format code with Prettier
-   ```bash
-   npm run format
-   ```
-
-3. **Build** - Test compilation before committing
-   ```bash
-   npm run build
-   ```
-
-4. **Database** - Create migrations for schema changes
-   ```bash
-   # After modifying prisma/schema.prisma
-   npm run db:migrate
-   ```
-
-## Troubleshooting
-
-### Database Connection Error
-```bash
-# Check if PostgreSQL is running
 docker compose ps
-
-# View PostgreSQL logs
 docker compose logs postgres
-
-# Verify DATABASE_URL in .env matches your setup
 ```
 
-### Migration Issues
+Then verify your `DATABASE_URL`.
+
+### Prisma type/client mismatch
+
 ```bash
-# Reset database (WARNING: deletes all data)
-docker compose down -v
-docker compose up -d
-npm run db:migrate
+npx prisma generate
+npm run build
 ```
 
-### Port Already in Use
-Change PORT in `.env` or:
+### Port 3000 busy
+
 ```bash
 lsof -i :3000
 kill -9 <PID>
-```
-
-### Prisma Client Issues
-```bash
-# Regenerate Prisma client
-npx prisma generate
-
-# Clear node_modules and reinstall
-rm -rf node_modules package-lock.json
-npm install --legacy-peer-deps
 ```
 
 ## License
