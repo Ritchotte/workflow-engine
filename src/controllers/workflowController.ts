@@ -5,7 +5,7 @@ import {
   StepType,
   WorkflowStatus,
 } from '../generated/prisma/client';
-import { WorkflowStepExecutorService } from '../services/workflowStepExecutor';
+import { enqueueWorkflowRun } from '../queues/workflowRunQueue';
 import { prisma } from '../utils/prisma';
 
 interface WorkflowStepPayload {
@@ -39,10 +39,6 @@ interface WorkflowParamsRequest extends Request {
   params: {
     id: string;
   };
-}
-
-interface ErrorWithStatus extends Error {
-  status?: number;
 }
 
 const toStepType = (type: string): StepType | null => {
@@ -331,24 +327,30 @@ export const executeWorkflowById = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const result = await WorkflowStepExecutorService.executeWorkflow(id);
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Workflow executed',
-      data: result,
+    const workflow = await prisma.workflow.findUnique({
+      where: { id },
+      select: { id: true },
     });
-  } catch (error) {
-    const handledError = error as ErrorWithStatus;
 
-    if (handledError.status === 404) {
+    if (!workflow) {
       res.status(404).json({
         status: 'error',
-        message: handledError.message,
+        message: 'Workflow not found',
       });
       return;
     }
 
+    const job = await enqueueWorkflowRun(id);
+
+    res.status(202).json({
+      status: 'success',
+      message: 'Workflow execution queued',
+      data: {
+        workflowId: id,
+        jobId: job.id,
+      },
+    });
+  } catch (error) {
     next(error);
   }
 };
