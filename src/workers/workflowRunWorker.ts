@@ -1,6 +1,6 @@
 import { config } from '../config';
 import { WORKFLOW_RUN_JOB, WorkflowRunJobData } from '../queues/workflowRunQueue';
-import { WorkflowStepExecutorService } from '../services/workflowStepExecutor';
+import { WorkflowRunnerService } from '../services/workflowRunnerService';
 import { createRedisConnection } from '../utils/redis';
 
 interface WorkerJob<TData> {
@@ -43,9 +43,7 @@ export const startWorkflowRunWorker = (): WorkerClient => {
         throw new Error('workflowId is required');
       }
 
-      const result = await WorkflowStepExecutorService.executeWorkflow(
-        job.data.workflowId
-      );
+      const result = await WorkflowRunnerService.run(job.data.workflowId);
 
       return {
         jobType: WORKFLOW_RUN_JOB,
