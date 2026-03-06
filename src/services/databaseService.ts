@@ -8,7 +8,7 @@ import {
   Workflow,
   WorkflowStatus,
   WorkflowStep,
-} from '../generated/prisma';
+} from '../generated/prisma/client';
 
 const toPrismaJson = (
   value: Prisma.InputJsonValue | null | undefined

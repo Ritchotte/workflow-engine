@@ -101,16 +101,9 @@ enum WorkflowStatus {
 }
 
 enum StepType {
-  HTTP
-  EMAIL
-  DATABASE
-  SCRIPT
-  WEBHOOK
-  CONDITIONAL
-  LOOP
-  PARALLEL
-  MANUAL_APPROVAL
-  CUSTOM
+  HTTP_REQUEST
+  DELAY
+  LOG
 }
 
 enum StepStatus {

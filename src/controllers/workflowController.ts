@@ -4,13 +4,13 @@ import {
   StepStatus,
   StepType,
   WorkflowStatus,
-} from '../generated/prisma';
+} from '../generated/prisma/client';
 import { prisma } from '../utils/prisma';
 
 interface WorkflowStepPayload {
   name: string;
   description?: string;
-  type: StepType;
+  type: string;
   order: number;
   config?: JsonValue | null;
   status?: StepStatus;
@@ -40,8 +40,23 @@ interface WorkflowParamsRequest extends Request {
   };
 }
 
-const isValidStepType = (type: string): type is StepType =>
-  Object.values(StepType).includes(type as StepType);
+const toStepType = (type: string): StepType | null => {
+  const normalizedType = type.trim().toLowerCase();
+
+  if (normalizedType === 'http_request') {
+    return StepType.HTTP_REQUEST;
+  }
+
+  if (normalizedType === 'delay') {
+    return StepType.DELAY;
+  }
+
+  if (normalizedType === 'log') {
+    return StepType.LOG;
+  }
+
+  return null;
+};
 
 const isValidStepStatus = (status: string): status is StepStatus =>
   Object.values(StepStatus).includes(status as StepStatus);
@@ -93,7 +108,7 @@ const areStepsValid = (steps: unknown): steps is WorkflowStepPayload[] => {
 
     if (
       typeof currentStep.type !== 'string' ||
-      !isValidStepType(currentStep.type)
+      toStepType(currentStep.type) === null
     ) {
       return false;
     }
@@ -140,7 +155,7 @@ export const createWorkflow = async (
       res.status(400).json({
         status: 'error',
         message:
-          'Invalid steps payload. Each step requires name, type, and integer order.',
+          'Invalid steps payload. Each step requires name, type (http_request|delay|log), and integer order.',
       });
       return;
     }
@@ -168,7 +183,7 @@ export const createWorkflow = async (
           create: steps.map((step) => ({
             name: step.name.trim(),
             description: step.description,
-            type: step.type,
+            type: toStepType(step.type) as StepType,
             order: step.order,
             config: toPrismaJson(step.config),
             status: step.status,
