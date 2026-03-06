@@ -23,6 +23,16 @@ interface Config {
     secret: string;
     expiresIn: string;
   };
+  redis: {
+    host: string;
+    port: number;
+    password?: string;
+    db: number;
+    url: string;
+  };
+  bullmq: {
+    workflowRunQueueName: string;
+  };
 }
 
 const getEnvironmentVariable = (key: string, defaultValue?: string): string => {
@@ -56,6 +66,19 @@ export const config: Config = {
     secret: getEnvironmentVariable('JWT_SECRET', 'your-secret-key-change-in-production'),
     expiresIn: getEnvironmentVariable('JWT_EXPIRES_IN', '24h'),
   },
+  redis: {
+    host: getEnvironmentVariable('REDIS_HOST', 'localhost'),
+    port: parseInt(getEnvironmentVariable('REDIS_PORT', '6379'), 10),
+    password: getEnvironmentVariable('REDIS_PASSWORD', ''),
+    db: parseInt(getEnvironmentVariable('REDIS_DB', '0'), 10),
+    url: getEnvironmentVariable('REDIS_URL', 'redis://localhost:6379'),
+  },
+  bullmq: {
+    workflowRunQueueName: getEnvironmentVariable(
+      'WORKFLOW_RUN_QUEUE_NAME',
+      'workflow-runs'
+    ),
+  },
 };
 
 // Log configuration on startup (without sensitive data)
@@ -66,6 +89,8 @@ if (config.isDevelopment) {
     DATABASE_HOST: config.database.host,
     DATABASE_PORT: config.database.port,
     DATABASE_NAME: config.database.database,
+    REDIS_HOST: config.redis.host,
+    REDIS_PORT: config.redis.port,
     LOG_LEVEL: config.logging.level,
   });
 }
