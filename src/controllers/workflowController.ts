@@ -41,6 +41,12 @@ interface WorkflowParamsRequest extends Request {
   };
 }
 
+interface WorkflowExecutionLogsRequest extends WorkflowParamsRequest {
+  query: {
+    limit?: string;
+  };
+}
+
 const toStepType = (type: string): StepType | null => {
   const normalizedType = type.trim().toLowerCase();
 
@@ -349,6 +355,58 @@ export const executeWorkflowById = async (
         workflowId: id,
         jobId: job.id,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get execution logs for a workflow.
+ */
+export const getWorkflowExecutionLogs = async (
+  req: WorkflowExecutionLogsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const parsedLimit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+    const limit =
+      Number.isNaN(parsedLimit) || parsedLimit <= 0 ? 50 : Math.min(parsedLimit, 200);
+
+    const workflow = await prisma.workflow.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!workflow) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Workflow not found',
+      });
+      return;
+    }
+
+    const logs = await prisma.executionLog.findMany({
+      where: { workflowId: id },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        workflowStep: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            order: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: logs,
     });
   } catch (error) {
     next(error);

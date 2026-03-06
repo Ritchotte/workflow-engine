@@ -27,6 +27,24 @@ interface WorkflowRunResult {
   steps: StepExecutionResult[];
 }
 
+const createSkippedStepLog = async (
+  workflowId: string,
+  stepId: string
+): Promise<void> => {
+  const now = new Date();
+  await prisma.executionLog.create({
+    data: {
+      workflowId,
+      workflowStepId: stepId,
+      status: ExecutionStatus.SKIPPED,
+      startedAt: now,
+      completedAt: now,
+      duration: 0,
+      error: 'Skipped because a previous step failed and continueOnError was false',
+    },
+  });
+};
+
 interface HttpRequestStepConfig {
   url: string;
   method?: string;
@@ -328,6 +346,15 @@ export class WorkflowRunnerService {
         workflowStatus = ExecutionStatus.FAILED;
 
         if (!behavior.continueOnError) {
+          const currentStepIndex = workflow.steps.findIndex(
+            (workflowStep) => workflowStep.id === step.id
+          );
+          const remainingSteps = workflow.steps.slice(currentStepIndex + 1);
+
+          for (const remainingStep of remainingSteps) {
+            await createSkippedStepLog(workflow.id, remainingStep.id);
+          }
+
           break;
         }
       }
