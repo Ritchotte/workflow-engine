@@ -5,6 +5,7 @@ import {
   StepType,
   WorkflowStatus,
 } from '../generated/prisma/client';
+import { WorkflowStepExecutorService } from '../services/workflowStepExecutor';
 import { prisma } from '../utils/prisma';
 
 interface WorkflowStepPayload {
@@ -38,6 +39,10 @@ interface WorkflowParamsRequest extends Request {
   params: {
     id: string;
   };
+}
+
+interface ErrorWithStatus extends Error {
+  status?: number;
 }
 
 const toStepType = (type: string): StepType | null => {
@@ -312,6 +317,38 @@ export const deleteWorkflowById = async (
       message: 'Workflow deleted successfully',
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Execute workflow steps in order.
+ */
+export const executeWorkflowById = async (
+  req: WorkflowParamsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const result = await WorkflowStepExecutorService.executeWorkflow(id);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Workflow executed',
+      data: result,
+    });
+  } catch (error) {
+    const handledError = error as ErrorWithStatus;
+
+    if (handledError.status === 404) {
+      res.status(404).json({
+        status: 'error',
+        message: handledError.message,
+      });
+      return;
+    }
+
     next(error);
   }
 };
