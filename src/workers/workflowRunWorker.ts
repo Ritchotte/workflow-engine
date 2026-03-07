@@ -1,6 +1,7 @@
 import { config } from '../config';
 import { WORKFLOW_RUN_JOB, WorkflowRunJobData } from '../queues/workflowRunQueue';
 import { WorkflowRunnerService } from '../services/workflowRunnerService';
+import { logger } from '../utils/logger';
 import { createRedisConnection } from '../utils/redis';
 
 interface WorkerJob<TData> {
@@ -57,21 +58,24 @@ export const startWorkflowRunWorker = (): WorkerClient => {
   );
 
   workflowRunWorker.on('completed', (job, result) => {
-    console.log('[Worker] Workflow run completed', {
+    logger.info({
+      message: 'workflow run completed',
       jobId: (job as WorkerJob<WorkflowRunJobData>)?.id,
       result,
     });
   });
 
   workflowRunWorker.on('failed', (job, error) => {
-    console.error('[Worker] Workflow run failed', {
+    logger.error({
+      message: 'workflow run failed',
       jobId: (job as WorkerJob<WorkflowRunJobData> | undefined)?.id,
       error: error instanceof Error ? error.message : String(error),
     });
   });
 
   workflowRunWorker.on('error', (error) => {
-    console.error('[Worker] Worker error', {
+    logger.error({
+      message: 'workflow worker error',
       error: error instanceof Error ? error.message : String(error),
     });
   });

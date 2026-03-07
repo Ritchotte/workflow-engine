@@ -7,6 +7,7 @@ import healthRouter from './routes/health';
 import authRouter from './routes/auth';
 import workflowRouter from './routes/workflow';
 import { syncScheduledWorkflowTriggers } from './services/workflowTriggerService';
+import { logger } from './utils/logger';
 
 const app: Express = express();
 
@@ -35,17 +36,20 @@ app.use(errorHandler);
 // Start server
 const startServer = (): void => {
   app.listen(config.port, () => {
-    console.log(
-      `[${config.nodeEnv.toUpperCase()}] Server running on http://localhost:${config.port}`
+    logger.info(
+      {
+        port: config.port,
+      },
+      'server started'
     );
-    console.log('Health check: GET http://localhost:3000/health');
 
     void syncScheduledWorkflowTriggers()
       .then(() => {
-        console.log('[TriggerService] Scheduled workflow triggers synced');
+        logger.info('scheduled workflow triggers synced');
       })
       .catch((error) => {
-        console.error('[TriggerService] Failed to sync scheduled triggers', {
+        logger.error({
+          message: 'failed to sync scheduled workflow triggers',
           error: error instanceof Error ? error.message : String(error),
         });
       });

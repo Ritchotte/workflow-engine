@@ -4,6 +4,7 @@ import {
   StepStatus,
   StepType,
 } from '../generated/prisma/client';
+import { logger } from '../utils/logger';
 import { prisma } from '../utils/prisma';
 
 type JsonPrimitive = string | number | boolean | null;
@@ -233,11 +234,11 @@ const executeLogStep = async (config: unknown): Promise<JsonValue> => {
   const logConfig = toLogConfig(config);
 
   if (logConfig.level === 'warn') {
-    console.warn(logConfig.message);
+    logger.warn({ message: logConfig.message }, 'workflow log step');
   } else if (logConfig.level === 'error') {
-    console.error(logConfig.message);
+    logger.error({ message: logConfig.message }, 'workflow log step');
   } else {
-    console.log(logConfig.message);
+    logger.info({ message: logConfig.message }, 'workflow log step');
   }
 
   return {
@@ -264,6 +265,9 @@ const executeStep = async (type: StepType, config: unknown): Promise<JsonValue> 
 
 export class WorkflowRunnerService {
   static async run(workflowId: string): Promise<WorkflowRunResult> {
+    const workflowLogger = logger.child({ workflowId });
+    workflowLogger.info('workflow execution started');
+
     const workflow = await prisma.workflow.findUnique({
       where: { id: workflowId },
       include: {
@@ -286,6 +290,13 @@ export class WorkflowRunnerService {
     for (const step of workflow.steps) {
       const startedAt = new Date();
       const behavior = toStepBehaviorConfig(step.config);
+      const stepLogger = workflowLogger.child({
+        stepId: step.id,
+        stepName: step.name,
+        stepType: step.type,
+        stepOrder: step.order,
+      });
+      stepLogger.info('workflow step started');
 
       const executionLog = await prisma.executionLog.create({
         data: {
@@ -319,6 +330,13 @@ export class WorkflowRunnerService {
           output,
           continueOnError: behavior.continueOnError,
         });
+        stepLogger.info(
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: completedAt.getTime() - startedAt.getTime(),
+          },
+          'workflow step completed'
+        );
       } catch (error) {
         const completedAt = new Date();
         const errorMessage =
@@ -342,6 +360,14 @@ export class WorkflowRunnerService {
           error: errorMessage,
           continueOnError: behavior.continueOnError,
         });
+        stepLogger.error(
+          {
+            status: ExecutionStatus.FAILED,
+            durationMs: completedAt.getTime() - startedAt.getTime(),
+            error: errorMessage,
+          },
+          'workflow step failed'
+        );
 
         workflowStatus = ExecutionStatus.FAILED;
 
@@ -360,10 +386,21 @@ export class WorkflowRunnerService {
       }
     }
 
-    return {
+    const output = {
       workflowId: workflow.id,
       status: workflowStatus,
       steps: results,
     };
+
+    workflowLogger.info(
+      {
+        status: workflowStatus,
+        totalSteps: workflow.steps.length,
+        completedSteps: results.length,
+      },
+      'workflow execution finished'
+    );
+
+    return output;
   }
 }

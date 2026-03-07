@@ -1,4 +1,5 @@
 import { config } from './config';
+import { logger } from './utils/logger';
 import {
   startWorkflowRunWorker,
   stopWorkflowRunWorker,
@@ -6,12 +7,15 @@ import {
 
 startWorkflowRunWorker();
 
-console.log(
-  `[${config.nodeEnv.toUpperCase()}] Worker listening on queue "${config.bullmq.workflowRunQueueName}"`
+logger.info(
+  {
+    queueName: config.bullmq.workflowRunQueueName,
+  },
+  'worker listening for workflow jobs'
 );
 
 const shutdown = async (signal: string): Promise<void> => {
-  console.log(`[Worker] Received ${signal}. Shutting down...`);
+  logger.info({ signal }, 'worker shutdown requested');
   await stopWorkflowRunWorker();
   process.exit(0);
 };
