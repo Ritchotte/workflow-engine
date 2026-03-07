@@ -28,6 +28,8 @@ model Workflow {
   name        String
   description String?
   status      WorkflowStatus @default(ACTIVE)
+  triggerType TriggerType @default(MANUAL)
+  triggerConfig Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdBy   String
@@ -38,6 +40,7 @@ model Workflow {
   executionLogs  ExecutionLog[]
 
   @@index([createdBy])
+  @@index([triggerType])
   @@map("workflows")
 }
 
@@ -120,4 +123,10 @@ enum ExecutionStatus {
   SKIPPED
   TIMEOUT
   CANCELLED
+}
+
+enum TriggerType {
+  WEBHOOK
+  SCHEDULED
+  MANUAL
 }

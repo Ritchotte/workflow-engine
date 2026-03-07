@@ -3,6 +3,7 @@ import {
   Prisma,
   StepStatus,
   StepType,
+  TriggerType,
   WorkflowStatus,
 } from '../generated/prisma/client';
 import { enqueueWorkflowRun } from '../queues/workflowRunQueue';
@@ -30,6 +31,8 @@ interface CreateWorkflowRequest extends Request {
     name: string;
     description?: string;
     status?: WorkflowStatus;
+    triggerType?: string;
+    triggerConfig?: JsonValue | null;
     createdBy: string;
     steps?: WorkflowStepPayload[];
   };
@@ -47,6 +50,9 @@ interface WorkflowExecutionLogsRequest extends WorkflowParamsRequest {
   };
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const toStepType = (type: string): StepType | null => {
   const normalizedType = type.trim().toLowerCase();
 
@@ -60,6 +66,24 @@ const toStepType = (type: string): StepType | null => {
 
   if (normalizedType === 'log') {
     return StepType.LOG;
+  }
+
+  return null;
+};
+
+const toTriggerType = (type: string): TriggerType | null => {
+  const normalizedType = type.trim().toLowerCase();
+
+  if (normalizedType === 'webhook') {
+    return TriggerType.WEBHOOK;
+  }
+
+  if (normalizedType === 'manual') {
+    return TriggerType.MANUAL;
+  }
+
+  if (normalizedType === 'scheduled') {
+    return TriggerType.SCHEDULED;
   }
 
   return null;
@@ -131,6 +155,27 @@ const areStepsValid = (steps: unknown): steps is WorkflowStepPayload[] => {
   });
 };
 
+const isWebhookTriggerConfigValid = (
+  triggerConfig: JsonValue | null | undefined
+): boolean => {
+  if (triggerConfig === undefined || triggerConfig === null) {
+    return true;
+  }
+
+  if (!isObject(triggerConfig)) {
+    return false;
+  }
+
+  if (
+    triggerConfig.secret !== undefined &&
+    typeof triggerConfig.secret !== 'string'
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 /**
  * Create a workflow.
  */
@@ -140,7 +185,15 @@ export const createWorkflow = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, description, status, createdBy, steps = [] } = req.body;
+    const {
+      name,
+      description,
+      status,
+      triggerType,
+      triggerConfig,
+      createdBy,
+      steps = [],
+    } = req.body;
 
     if (!name || !createdBy) {
       res.status(400).json({
@@ -167,6 +220,38 @@ export const createWorkflow = async (
       return;
     }
 
+    const parsedTriggerType = triggerType
+      ? toTriggerType(triggerType)
+      : TriggerType.MANUAL;
+
+    if (!parsedTriggerType) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Invalid triggerType. Allowed values: webhook|manual',
+      });
+      return;
+    }
+
+    if (parsedTriggerType === TriggerType.SCHEDULED) {
+      res.status(400).json({
+        status: 'error',
+        message: 'scheduled trigger support is not enabled yet',
+      });
+      return;
+    }
+
+    if (
+      parsedTriggerType === TriggerType.WEBHOOK &&
+      !isWebhookTriggerConfigValid(triggerConfig)
+    ) {
+      res.status(400).json({
+        status: 'error',
+        message:
+          'Invalid webhook triggerConfig. Expected object with optional string secret.',
+      });
+      return;
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: createdBy },
       select: { id: true },
@@ -185,6 +270,8 @@ export const createWorkflow = async (
         name: name.trim(),
         description,
         status,
+        triggerType: parsedTriggerType,
+        triggerConfig: toPrismaJson(triggerConfig),
         createdBy,
         steps: {
           create: steps.map((step) => ({
@@ -346,11 +433,85 @@ export const executeWorkflowById = async (
       return;
     }
 
-    const job = await enqueueWorkflowRun(id);
+    const job = await enqueueWorkflowRun(id, {
+      triggerSource: 'manual',
+    });
 
     res.status(202).json({
       status: 'success',
       message: 'Workflow execution queued',
+      data: {
+        workflowId: id,
+        jobId: job.id,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Trigger a workflow using webhook trigger configuration.
+ */
+export const executeWorkflowByWebhook = async (
+  req: WorkflowParamsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const workflow = await prisma.workflow.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        triggerType: true,
+        triggerConfig: true,
+      },
+    });
+
+    if (!workflow) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Workflow not found',
+      });
+      return;
+    }
+
+    if (workflow.triggerType !== TriggerType.WEBHOOK) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Workflow triggerType is not webhook',
+      });
+      return;
+    }
+
+    const webhookConfig = isObject(workflow.triggerConfig)
+      ? workflow.triggerConfig
+      : {};
+
+    if (
+      typeof webhookConfig.secret === 'string' &&
+      req.header('x-webhook-secret') !== webhookConfig.secret
+    ) {
+      res.status(401).json({
+        status: 'error',
+        message: 'Invalid webhook secret',
+      });
+      return;
+    }
+
+    const triggerMetadata = isObject(req.body)
+      ? (req.body as Record<string, unknown>)
+      : undefined;
+
+    const job = await enqueueWorkflowRun(id, {
+      triggerSource: 'webhook',
+      triggerMetadata,
+    });
+
+    res.status(202).json({
+      status: 'success',
+      message: 'Workflow webhook trigger queued',
       data: {
         workflowId: id,
         jobId: job.id,

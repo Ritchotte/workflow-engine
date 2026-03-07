@@ -3,6 +3,7 @@ import {
   createWorkflow,
   deleteWorkflowById,
   executeWorkflowById,
+  executeWorkflowByWebhook,
   getWorkflowExecutionLogs,
   getWorkflowById,
   getWorkflows,
@@ -15,6 +16,7 @@ router.get('/', getWorkflows);
 router.get('/:id', getWorkflowById);
 router.get('/:id/execution-logs', getWorkflowExecutionLogs);
 router.post('/:id/execute', executeWorkflowById);
+router.post('/:id/trigger/webhook', executeWorkflowByWebhook);
 router.delete('/:id', deleteWorkflowById);
 
 export default router;

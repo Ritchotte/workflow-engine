@@ -40,6 +40,13 @@ const { Queue } = require('bullmq') as { Queue: QueueConstructor };
 export interface WorkflowRunJobData {
   workflowId: string;
   requestedAt: string;
+  triggerSource: 'manual' | 'webhook' | 'scheduled';
+  triggerMetadata?: Record<string, unknown>;
+}
+
+interface EnqueueWorkflowRunOptions {
+  triggerSource: WorkflowRunJobData['triggerSource'];
+  triggerMetadata?: Record<string, unknown>;
 }
 
 const workflowRunQueue = new Queue<WorkflowRunJobData>(
@@ -50,13 +57,16 @@ const workflowRunQueue = new Queue<WorkflowRunJobData>(
 );
 
 export const enqueueWorkflowRun = async (
-  workflowId: string
+  workflowId: string,
+  options: EnqueueWorkflowRunOptions
 ): Promise<QueueJob> =>
   workflowRunQueue.add(
     WORKFLOW_RUN_JOB,
     {
       workflowId,
       requestedAt: new Date().toISOString(),
+      triggerSource: options.triggerSource,
+      triggerMetadata: options.triggerMetadata,
     },
     {
       attempts: 3,
