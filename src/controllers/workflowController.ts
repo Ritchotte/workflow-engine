@@ -7,6 +7,10 @@ import {
   WorkflowStatus,
 } from '../generated/prisma/client';
 import { enqueueWorkflowRun } from '../queues/workflowRunQueue';
+import {
+  scheduleWorkflowTrigger,
+  unscheduleWorkflowTrigger,
+} from '../services/workflowTriggerService';
 import { prisma } from '../utils/prisma';
 
 interface WorkflowStepPayload {
@@ -176,6 +180,20 @@ const isWebhookTriggerConfigValid = (
   return true;
 };
 
+const isScheduledTriggerConfigValid = (
+  triggerConfig: JsonValue | null | undefined
+): boolean => {
+  if (!isObject(triggerConfig)) {
+    return false;
+  }
+
+  if (typeof triggerConfig.cronExpression !== 'string') {
+    return false;
+  }
+
+  return triggerConfig.cronExpression.trim().length > 0;
+};
+
 /**
  * Create a workflow.
  */
@@ -227,15 +245,7 @@ export const createWorkflow = async (
     if (!parsedTriggerType) {
       res.status(400).json({
         status: 'error',
-        message: 'Invalid triggerType. Allowed values: webhook|manual',
-      });
-      return;
-    }
-
-    if (parsedTriggerType === TriggerType.SCHEDULED) {
-      res.status(400).json({
-        status: 'error',
-        message: 'scheduled trigger support is not enabled yet',
+        message: 'Invalid triggerType. Allowed values: webhook|scheduled|manual',
       });
       return;
     }
@@ -248,6 +258,18 @@ export const createWorkflow = async (
         status: 'error',
         message:
           'Invalid webhook triggerConfig. Expected object with optional string secret.',
+      });
+      return;
+    }
+
+    if (
+      parsedTriggerType === TriggerType.SCHEDULED &&
+      !isScheduledTriggerConfigValid(triggerConfig)
+    ) {
+      res.status(400).json({
+        status: 'error',
+        message:
+          'Invalid scheduled triggerConfig. Expected object with string cronExpression.',
       });
       return;
     }
@@ -292,6 +314,10 @@ export const createWorkflow = async (
         },
       },
     });
+
+    if (workflow.triggerType === TriggerType.SCHEDULED) {
+      await scheduleWorkflowTrigger(workflow.id, workflow.triggerConfig);
+    }
 
     res.status(201).json({
       status: 'success',
@@ -386,7 +412,11 @@ export const deleteWorkflowById = async (
 
     const workflow = await prisma.workflow.findUnique({
       where: { id },
-      select: { id: true },
+      select: {
+        id: true,
+        triggerType: true,
+        triggerConfig: true,
+      },
     });
 
     if (!workflow) {
@@ -395,6 +425,10 @@ export const deleteWorkflowById = async (
         message: 'Workflow not found',
       });
       return;
+    }
+
+    if (workflow.triggerType === TriggerType.SCHEDULED) {
+      await unscheduleWorkflowTrigger(workflow.id, workflow.triggerConfig);
     }
 
     await prisma.workflow.delete({

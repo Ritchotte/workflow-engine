@@ -6,6 +6,7 @@ import { errorHandler } from './middleware/errorHandler';
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
 import workflowRouter from './routes/workflow';
+import { syncScheduledWorkflowTriggers } from './services/workflowTriggerService';
 
 const app: Express = express();
 
@@ -38,6 +39,16 @@ const startServer = (): void => {
       `[${config.nodeEnv.toUpperCase()}] Server running on http://localhost:${config.port}`
     );
     console.log('Health check: GET http://localhost:3000/health');
+
+    void syncScheduledWorkflowTriggers()
+      .then(() => {
+        console.log('[TriggerService] Scheduled workflow triggers synced');
+      })
+      .catch((error) => {
+        console.error('[TriggerService] Failed to sync scheduled triggers', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
   });
 };
 
