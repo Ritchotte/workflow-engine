@@ -456,13 +456,24 @@ export const executeWorkflowById = async (
     const { id } = req.params;
     const workflow = await prisma.workflow.findUnique({
       where: { id },
-      select: { id: true },
+      select: {
+        id: true,
+        triggerType: true,
+      },
     });
 
     if (!workflow) {
       res.status(404).json({
         status: 'error',
         message: 'Workflow not found',
+      });
+      return;
+    }
+
+    if (workflow.triggerType !== TriggerType.MANUAL) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Workflow triggerType is not manual',
       });
       return;
     }
@@ -483,6 +494,11 @@ export const executeWorkflowById = async (
     next(error);
   }
 };
+
+/**
+ * Trigger a workflow manually.
+ */
+export const executeWorkflowManually = executeWorkflowById;
 
 /**
  * Trigger a workflow using webhook trigger configuration.

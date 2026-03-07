@@ -119,6 +119,8 @@ docker compose exec app npm run db:migrate
 - `GET /workflows/:id`
 - `DELETE /workflows/:id`
 - `POST /workflows/:id/execute`
+- `POST /workflows/:id/trigger/manual`
+- `POST /workflows/:id/trigger/webhook`
 
 ## Workflow + step model (plain English)
 
@@ -197,6 +199,7 @@ curl -X POST http://localhost:3000/workflows \
   -d '{
     "name": "Demo Workflow",
     "description": "Simple 3-step run",
+    "triggerType": "manual",
     "createdBy": "<USER_ID>",
     "steps": [
       {
@@ -229,6 +232,11 @@ curl -X POST http://localhost:3000/workflows \
   }'
 ```
 
+`triggerType` supports:
+- `manual` (default)
+- `webhook` (optional `triggerConfig.secret`)
+- `scheduled` (requires `triggerConfig.cronExpression`)
+
 ## Execute a workflow
 
 ```bash
@@ -236,6 +244,21 @@ curl -X POST http://localhost:3000/workflows/<WORKFLOW_ID>/execute
 ```
 
 The server executes active steps in order and stores execution logs.
+
+For explicit manual trigger:
+
+```bash
+curl -X POST http://localhost:3000/workflows/<WORKFLOW_ID>/trigger/manual
+```
+
+For webhook trigger:
+
+```bash
+curl -X POST http://localhost:3000/workflows/<WORKFLOW_ID>/trigger/webhook \
+  -H "x-webhook-secret: <optional_secret>" \
+  -H "Content-Type: application/json" \
+  -d '{"event":"demo"}'
+```
 
 ## Scripts you’ll actually use
 
