@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { WorkflowManagementService } from '../services/workflowManagementService';
+import { ApiSuccessResponse } from '../types/api';
+import { sendSuccess } from '../utils/apiResponse';
 
 const toMetadataObject = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -12,77 +14,65 @@ const toSingleParam = (value: string | string[] | undefined): string =>
 
 export const createWorkflow = asyncHandler(async (
   req: Request,
-  res: Response
+  res: Response<ApiSuccessResponse<unknown>>
 ): Promise<void> => {
   const workflow = await WorkflowManagementService.createWorkflow(
     req.body as any
   );
 
-  res.status(201).json({
-    status: 'success',
-    message: 'Workflow created successfully',
-    data: workflow,
-  });
+  sendSuccess(res, 201, workflow, 'Workflow created successfully');
 });
 
 export const getWorkflows = asyncHandler(async (
   _req: Request,
-  res: Response
+  res: Response<ApiSuccessResponse<unknown>>
 ): Promise<void> => {
   const workflows = await WorkflowManagementService.getWorkflows();
-  res.status(200).json({
-    status: 'success',
-    data: workflows,
-  });
+  sendSuccess(res, 200, workflows);
 });
 
 export const getWorkflowById = asyncHandler(async (
   req: Request,
-  res: Response
+  res: Response<ApiSuccessResponse<unknown>>
 ): Promise<void> => {
   const workflow = await WorkflowManagementService.getWorkflowById(
     toSingleParam(req.params.id)
   );
-  res.status(200).json({
-    status: 'success',
-    data: workflow,
-  });
+  sendSuccess(res, 200, workflow);
 });
 
 export const deleteWorkflowById = asyncHandler(async (
   req: Request,
-  res: Response
+  res: Response<ApiSuccessResponse<null>>
 ): Promise<void> => {
   await WorkflowManagementService.deleteWorkflowById(toSingleParam(req.params.id));
 
-  res.status(200).json({
-    status: 'success',
-    message: 'Workflow deleted successfully',
-  });
+  sendSuccess(res, 200, null, 'Workflow deleted successfully');
 });
 
 export const executeWorkflowById = asyncHandler(async (
   req: Request,
-  res: Response
+  res: Response<ApiSuccessResponse<{ workflowId: string; jobId: string | undefined }>>
 ): Promise<void> => {
   const id = toSingleParam(req.params.id);
   const job = await WorkflowManagementService.queueManualExecution(id);
 
-  res.status(202).json({
-    status: 'success',
-    message: 'Workflow execution queued',
-    data: {
+  sendSuccess(
+    res,
+    202,
+    {
       workflowId: id,
       jobId: job.id,
     },
-  });
+    'Workflow execution queued'
+  );
 });
 
 export const executeWorkflowManually = executeWorkflowById;
 
 export const executeWorkflowByWebhook = asyncHandler(async (
   req: Request,
-  res: Response
+  res: Response<ApiSuccessResponse<{ workflowId: string; jobId: string | undefined }>>
 ): Promise<void> => {
   const id = toSingleParam(req.params.id);
   const job = await WorkflowManagementService.queueWebhookExecution(
@@ -91,27 +81,25 @@ export const executeWorkflowByWebhook = asyncHandler(async (
     toMetadataObject(req.body)
   );
 
-  res.status(202).json({
-    status: 'success',
-    message: 'Workflow webhook trigger queued',
-    data: {
+  sendSuccess(
+    res,
+    202,
+    {
       workflowId: id,
       jobId: job.id,
     },
-  });
+    'Workflow webhook trigger queued'
+  );
 });
 
 export const getWorkflowExecutionLogs = asyncHandler(async (
   req: Request,
-  res: Response
+  res: Response<ApiSuccessResponse<unknown>>
 ): Promise<void> => {
   const logs = await WorkflowManagementService.getExecutionLogs(
     toSingleParam(req.params.id),
     req.query.limit as string | undefined
   );
 
-  res.status(200).json({
-    status: 'success',
-    data: logs,
-  });
+  sendSuccess(res, 200, logs);
 });

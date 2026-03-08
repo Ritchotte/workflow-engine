@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
 import { ParsedQs } from 'qs';
 import { ZodError, ZodTypeAny } from 'zod';
+import { ApiErrorResponse } from '../types/api';
 
 interface RequestSchemas {
   body?: ZodTypeAny;
@@ -17,7 +18,7 @@ const formatZodErrors = (error: ZodError): Array<{ path: string; message: string
 
 export const validateRequest = (schemas: RequestSchemas) => (
   req: Request,
-  res: Response,
+  res: Response<ApiErrorResponse>,
   next: NextFunction
 ): void => {
   if (schemas.body) {
@@ -25,6 +26,7 @@ export const validateRequest = (schemas: RequestSchemas) => (
     if (!parsedBody.success) {
       res.status(400).json({
         status: 'error',
+        statusCode: 400,
         message: 'Invalid request body',
         errors: formatZodErrors(parsedBody.error),
       });
@@ -38,6 +40,7 @@ export const validateRequest = (schemas: RequestSchemas) => (
     if (!parsedParams.success) {
       res.status(400).json({
         status: 'error',
+        statusCode: 400,
         message: 'Invalid request params',
         errors: formatZodErrors(parsedParams.error),
       });
@@ -51,6 +54,7 @@ export const validateRequest = (schemas: RequestSchemas) => (
     if (!parsedQuery.success) {
       res.status(400).json({
         status: 'error',
+        statusCode: 400,
         message: 'Invalid request query',
         errors: formatZodErrors(parsedQuery.error),
       });

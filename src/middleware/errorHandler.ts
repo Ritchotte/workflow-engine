@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config';
 import { AppError } from '../errors/appError';
+import { ApiErrorResponse } from '../types/api';
+import { sendError } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
 
 export const errorHandler = (
   error: Error,
   req: Request,
-  res: Response,
+  res: Response<ApiErrorResponse>,
   _next: NextFunction
 ): void => {
   const appError =
@@ -43,9 +45,5 @@ export const errorHandler = (
     'request failed'
   );
 
-  res.status(status).json({
-    status: 'error',
-    statusCode: status,
-    message: publicMessage,
-  });
+  sendError(res, status, publicMessage, appError.details);
 };

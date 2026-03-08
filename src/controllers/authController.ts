@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { AppError } from '../errors/appError';
 import { AuthManagementService } from '../services/authManagementService';
+import { ApiSuccessResponse } from '../types/api';
+import { sendSuccess } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 
 interface RegisterRequest extends Request {
@@ -23,7 +25,7 @@ interface LoginRequest extends Request {
  */
 export const register = asyncHandler(async (
   req: RegisterRequest,
-  res: Response
+  res: Response<ApiSuccessResponse<{ user: unknown; token: string }>>
 ): Promise<void> => {
   const { email, password, name } = req.body;
 
@@ -37,11 +39,7 @@ export const register = asyncHandler(async (
     name,
   });
 
-  res.status(201).json({
-    status: 'success',
-    message: 'User registered successfully',
-    data: payload,
-  });
+  sendSuccess(res, 201, payload, 'User registered successfully');
 });
 
 /**
@@ -49,7 +47,7 @@ export const register = asyncHandler(async (
  */
 export const login = asyncHandler(async (
   req: LoginRequest,
-  res: Response
+  res: Response<ApiSuccessResponse<{ user: unknown; token: string }>>
 ): Promise<void> => {
   const { email, password } = req.body;
 
@@ -62,9 +60,5 @@ export const login = asyncHandler(async (
     password,
   });
 
-  res.status(200).json({
-    status: 'success',
-    message: 'Login successful',
-    data: payload,
-  });
+  sendSuccess(res, 200, payload, 'Login successful');
 });
