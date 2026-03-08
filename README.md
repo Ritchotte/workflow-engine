@@ -1,114 +1,60 @@
 # Workflow Engine
 
-This is a backend project for building and running simple workflows.
+A TypeScript backend for creating and executing multi-step workflows with manual, webhook, and scheduled triggers.
 
-Think of it like this:
-- A **workflow** is a sequence of steps.
-- Each **step** is an action.
-- Right now, supported step actions are:
-  - `http_request`
-  - `delay`
-  - `log`
-
-Built with:
+## Stack
 - Node.js + TypeScript
 - Express
-- Prisma
-- PostgreSQL
+- Prisma + PostgreSQL
+- BullMQ + Redis
+- Zod validation
+- Pino logging
+- Swagger/OpenAPI
 
-## Why this project exists
+## Architecture
+The codebase follows a layered structure:
 
-This project is a clean starter for workflow automation ideas.
-If you're in school (or just prototyping), it gives you:
-- auth basics
-- CRUD APIs for workflows
-- ordered steps with JSON config
-- execution logging for each step
+- `routes/`: endpoint definitions and middleware composition
+- `controllers/`: HTTP orchestration (request -> service -> response)
+- `services/`: business logic and data orchestration
+- `middleware/`: cross-cutting concerns (security, validation, logging, errors)
+- `errors/`: shared application error types
+- `utils/`: reusable utilities (`asyncHandler`, logger, API response helpers)
 
-## Author
+### Request Lifecycle
+1. Security middleware (`helmet`, rate limiter)
+2. Request parsing + request logging
+3. Zod validation (`validateRequest`)
+4. Controller dispatch
+5. Service layer execution
+6. Typed API response
+7. Centralized error middleware for failures
 
-Ruth Anna Ritchotte
+## Core Backend Improvements
 
-## Project layout
+### Centralized error handling
+- `AppError` defines operational errors with status codes/details.
+- `errorHandler` converts all thrown errors into consistent JSON responses.
+- `asyncHandler` removes repeated `try/catch` boilerplate in controllers.
 
-```txt
-src/
-  config/         env + config loading
-  controllers/    request handlers
-  middleware/     express middleware
-  routes/         API route files
-  services/       business logic + executors
-  utils/          helpers (like Prisma client)
-  index.ts        express app setup
-  server.ts       app entrypoint
+### Service layer separation
+- Auth business logic is in `AuthManagementService`.
+- Workflow business logic is in `WorkflowManagementService`.
+- Controllers now focus on HTTP concerns only.
 
-prisma/
-  schema.prisma   database models
-  migrations/     prisma migrations
-```
+### Typed API responses
+- Shared response contracts in `src/types/api.ts`.
+- Shared helpers in `src/utils/apiResponse.ts`.
+- Success/error payloads are consistent across endpoints.
 
-## Quick start (local)
+## API Documentation
+- Swagger UI: `GET /docs`
+- OpenAPI JSON: `GET /docs/openapi.json`
 
-### 1. Install deps
-
-```bash
-npm install --legacy-peer-deps
-```
-
-### 2. Create env file
-
-```bash
-cp .env.example .env
-```
-
-### 3. Start Postgres
-
-If you want to use Docker:
-
-```bash
-docker compose up -d postgres
-```
-
-### 4. Run migrations
-
-```bash
-npm run db:migrate
-```
-
-### 5. Start server
-
-```bash
-npm run dev
-```
-
-Server should run on:
-- `http://localhost:3000`
-
-Health check:
-
-```bash
-curl http://localhost:3000/health
-```
-
-## Docker all-in-one
-
-Run app + database:
-
-```bash
-docker compose up -d
-```
-
-Then run migrations inside container:
-
-```bash
-docker compose exec app npm run db:migrate
-```
-
-## Main API routes
+## API Surface
 
 ### Health
 - `GET /health`
-- `GET /docs`
 
 ### Auth
 - `POST /auth/register`
@@ -119,141 +65,85 @@ docker compose exec app npm run db:migrate
 - `GET /workflows`
 - `GET /workflows/:id`
 - `DELETE /workflows/:id`
+- `GET /workflows/:id/execution-logs`
 - `POST /workflows/:id/execute`
 - `POST /workflows/:id/trigger/manual`
 - `POST /workflows/:id/trigger/webhook`
 
-## Workflow + step model (plain English)
+## Trigger Types
+- `manual` (default)
+- `webhook` (optional secret in `triggerConfig.secret`)
+- `scheduled` (cron in `triggerConfig.cronExpression`)
 
-### Workflow
-A workflow has:
-- name
-- optional description
-- status
-- creator (`createdBy`)
-- ordered steps
+## Quick Start
 
-### Step
-Each step has:
-- `name`
-- `type` (`http_request`, `delay`, `log`)
-- `order`
-- `config` (JSON)
-
-`config` is where step-specific options live.
-
-## Step config examples
-
-### `http_request`
-
-```json
-{
-  "name": "Call API",
-  "type": "http_request",
-  "order": 1,
-  "config": {
-    "url": "https://httpbin.org/post",
-    "method": "POST",
-    "headers": {
-      "content-type": "application/json"
-    },
-    "body": {
-      "hello": "world"
-    },
-    "timeoutMs": 10000
-  }
-}
+1. Install dependencies
+```bash
+npm install --legacy-peer-deps
 ```
 
-### `delay`
-
-```json
-{
-  "name": "Wait 2 seconds",
-  "type": "delay",
-  "order": 2,
-  "config": {
-    "durationMs": 2000
-  }
-}
+2. Configure environment
+```bash
+cp .env.example .env
 ```
 
-### `log`
-
-```json
-{
-  "name": "Print message",
-  "type": "log",
-  "order": 3,
-  "config": {
-    "message": "Workflow reached step 3",
-    "level": "info"
-  }
-}
+3. Start infrastructure
+```bash
+docker compose up -d postgres redis
 ```
 
-## Create a workflow (example)
+4. Run migrations
+```bash
+npm run db:migrate
+```
 
+5. Start API
+```bash
+npm run dev
+```
+
+6. Start worker (separate terminal)
+```bash
+npm run worker
+```
+
+## Useful Scripts
+```bash
+npm run dev
+npm run worker
+npm run build
+npm run test
+npm run lint
+npm run db:migrate
+npm run db:push
+npm run db:studio
+```
+
+## Example: Create Workflow
 ```bash
 curl -X POST http://localhost:3000/workflows \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Demo Workflow",
-    "description": "Simple 3-step run",
-    "triggerType": "manual",
     "createdBy": "<USER_ID>",
+    "triggerType": "manual",
     "steps": [
       {
-        "name": "Call API",
-        "type": "http_request",
-        "order": 1,
-        "config": {
-          "url": "https://httpbin.org/get",
-          "method": "GET"
-        }
-      },
-      {
-        "name": "Pause",
-        "type": "delay",
-        "order": 2,
-        "config": {
-          "durationMs": 1000
-        }
-      },
-      {
-        "name": "Log done",
+        "name": "Log Start",
         "type": "log",
-        "order": 3,
-        "config": {
-          "message": "Done",
-          "level": "info"
-        }
+        "order": 1,
+        "config": { "message": "started", "level": "info" }
       }
     ]
   }'
 ```
 
-`triggerType` supports:
-- `manual` (default)
-- `webhook` (optional `triggerConfig.secret`)
-- `scheduled` (requires `triggerConfig.cronExpression`)
-
-## Execute a workflow
-
-```bash
-curl -X POST http://localhost:3000/workflows/<WORKFLOW_ID>/execute
-```
-
-The server executes active steps in order and stores execution logs.
-
-For explicit manual trigger:
-
+## Example: Manual Execution
 ```bash
 curl -X POST http://localhost:3000/workflows/<WORKFLOW_ID>/trigger/manual
 ```
 
-For webhook trigger:
-
+## Example: Webhook Execution
 ```bash
 curl -X POST http://localhost:3000/workflows/<WORKFLOW_ID>/trigger/webhook \
   -H "x-webhook-secret: <optional_secret>" \
@@ -261,62 +151,6 @@ curl -X POST http://localhost:3000/workflows/<WORKFLOW_ID>/trigger/webhook \
   -d '{"event":"demo"}'
 ```
 
-## Scripts you’ll actually use
-
-```bash
-npm run dev         # start dev server
-npm run build       # TypeScript compile
-npm run lint        # lint checks
-npm run db:migrate  # run prisma migrations
-npm run db:push     # push schema (without migration files)
-npm run db:studio   # open Prisma Studio
-```
-
-## Environment variables
-
-At minimum, set:
-- `PORT`
-- `DATABASE_URL`
-- `NODE_ENV`
-
-If you use docker-compose defaults, your `.env` can look like this:
-
-```env
-NODE_ENV=development
-PORT=3000
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=workflow_db
-DATABASE_URL=postgres://postgres:postgres@postgres:5432/workflow_db
-```
-
-## Common issues
-
-### Postgres not connecting
-
-```bash
-docker compose ps
-docker compose logs postgres
-```
-
-Then verify your `DATABASE_URL`.
-
-### Prisma type/client mismatch
-
-```bash
-npx prisma generate
-npm run build
-```
-
-### Port 3000 busy
-
-```bash
-lsof -i :3000
-kill -9 <PID>
-```
-
-## License
-
-ISC
+## Notes
+- Run both API and worker for queued workflow execution.
+- `/docs` is generated from the OpenAPI spec in `src/docs/openapi.ts`.
