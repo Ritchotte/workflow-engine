@@ -1,6 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../utils/prisma';
-import { authService } from '../services/authService';
+import { Request, Response } from 'express';
+import { AppError } from '../errors/appError';
+import { AuthManagementService } from '../services/authManagementService';
+import { asyncHandler } from '../utils/asyncHandler';
 
 interface RegisterRequest extends Request {
   body: {
@@ -20,139 +21,50 @@ interface LoginRequest extends Request {
 /**
  * Register a new user
  */
-export const register = async (
+export const register = asyncHandler(async (
   req: RegisterRequest,
-  res: Response,
-  next: NextFunction
+  res: Response
 ): Promise<void> => {
-  try {
-    const { email, password, name } = req.body;
+  const { email, password, name } = req.body;
 
-    // Validate input
-    if (!email || !password) {
-      res.status(400).json({
-        status: 'error',
-        message: 'Email and password are required',
-      });
-      return;
-    }
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      res.status(409).json({
-        status: 'error',
-        message: 'User with this email already exists',
-      });
-      return;
-    }
-
-    // Hash password
-    const hashedPassword = await authService.hashPassword(password);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        password: hashedPassword,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        createdAt: true,
-      },
-    });
-
-    // Generate token
-    const token = authService.generateToken({
-      userId: user.id,
-      email: user.email,
-    });
-
-    res.status(201).json({
-      status: 'success',
-      message: 'User registered successfully',
-      data: {
-        user,
-        token,
-      },
-    });
-  } catch (error) {
-    next(error);
+  if (!email || !password) {
+    throw new AppError('Email and password are required', 400);
   }
-};
+
+  const payload = await AuthManagementService.registerUser({
+    email,
+    password,
+    name,
+  });
+
+  res.status(201).json({
+    status: 'success',
+    message: 'User registered successfully',
+    data: payload,
+  });
+});
 
 /**
  * Login a user
  */
-export const login = async (
+export const login = asyncHandler(async (
   req: LoginRequest,
-  res: Response,
-  next: NextFunction
+  res: Response
 ): Promise<void> => {
-  try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    // Validate input
-    if (!email || !password) {
-      res.status(400).json({
-        status: 'error',
-        message: 'Email and password are required',
-      });
-      return;
-    }
-
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (!user) {
-      res.status(401).json({
-        status: 'error',
-        message: 'Invalid email or password',
-      });
-      return;
-    }
-
-    // Verify password
-    const isPasswordValid = await authService.comparePasswords(
-      password,
-      user.password
-    );
-
-    if (!isPasswordValid) {
-      res.status(401).json({
-        status: 'error',
-        message: 'Invalid email or password',
-      });
-      return;
-    }
-
-    // Generate token
-    const token = authService.generateToken({
-      userId: user.id,
-      email: user.email,
-    });
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Login successful',
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        },
-        token,
-      },
-    });
-  } catch (error) {
-    next(error);
+  if (!email || !password) {
+    throw new AppError('Email and password are required', 400);
   }
-};
+
+  const payload = await AuthManagementService.loginUser({
+    email,
+    password,
+  });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Login successful',
+    data: payload,
+  });
+});

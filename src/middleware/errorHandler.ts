@@ -1,20 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config';
+import { AppError } from '../errors/appError';
 import { logger } from '../utils/logger';
 
-interface ErrorWithStatus extends Error {
-  status?: number;
-  statusCode?: number;
-  details?: unknown;
-}
-
 export const errorHandler = (
-  error: ErrorWithStatus,
+  error: Error,
   req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
-  const candidateStatus = error.status ?? error.statusCode ?? 500;
+  const appError =
+    error instanceof AppError
+      ? error
+      : new AppError(
+          error.message || 'Internal Server Error',
+          500
+        );
+
+  const candidateStatus = appError.statusCode;
   const status =
     Number.isInteger(candidateStatus) &&
     candidateStatus >= 400 &&
@@ -32,10 +35,10 @@ export const errorHandler = (
       path: req.path,
       query: req.query,
       body: req.body,
-      details: error.details,
-      errorName: error.name,
-      errorMessage: error.message,
-      stack: config.isProduction ? undefined : error.stack,
+      details: appError.details,
+      errorName: appError.name,
+      errorMessage: appError.message,
+      stack: config.isProduction ? undefined : appError.stack,
     },
     'request failed'
   );
