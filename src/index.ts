@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/errorHandler';
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
 import workflowRouter from './routes/workflow';
+import docsRouter from './routes/docs';
 import { syncScheduledWorkflowTriggers } from './services/workflowTriggerService';
 import { logger } from './utils/logger';
 
@@ -33,6 +34,7 @@ app.use(requestLogger);
 
 // Routes
 app.use('/', healthRouter);
+app.use('/docs', docsRouter);
 app.use('/auth', authRouter);
 app.use('/workflows', workflowRouter);
 

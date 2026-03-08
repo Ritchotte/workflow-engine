@@ -108,6 +108,7 @@ docker compose exec app npm run db:migrate
 
 ### Health
 - `GET /health`
+- `GET /docs`
 
 ### Auth
 - `POST /auth/register`
